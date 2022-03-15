@@ -18,4 +18,4 @@ export CPPFLAGS="-I/opt/homebrew/opt/llvm/include"
 
 ### Why
 
-to learn more about how compilers work
+what better way to learn more about compilers than to actually build one
