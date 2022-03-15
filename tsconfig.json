@@ -1,0 +1,10 @@
+{
+  "compilerOptions": {
+    "allowJs": true,
+    "strict": true,
+    "esModuleInterop": true
+  },
+
+  "include": ["src", "types"],
+  "exclude": ["node_modules"]
+}
