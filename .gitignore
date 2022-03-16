@@ -1,6 +1,8 @@
 # -- Project Specific --
 
-
+/*.ll
+/*.out
+*.o
 
 # -- Node.gitignore --
 

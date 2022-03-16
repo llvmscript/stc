@@ -16,6 +16,12 @@ export LDFLAGS="-L/opt/homebrew/opt/llvm/lib"
 export CPPFLAGS="-I/opt/homebrew/opt/llvm/include"
 ```
 
+Getting LLVM generated code from a c file:
+
+```
+llvm-gcc -S -emit-llvm llvm/hello-world.c -o /dev/stdout
+```
+
 ### Why
 
 what better way to learn more about compilers than to actually build one
