@@ -13,6 +13,9 @@ type i32 = number;
  */
 type i64 = number;
 
+
+// ? What are the corresponding llvm types? Float, half float, and double? Should we merge them into one (just float)?
+
 /**
  * Signed 16 bit float
  */
