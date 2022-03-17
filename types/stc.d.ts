@@ -1,4 +1,23 @@
 /**
+ * llvmscript's main TypeScript definition file.
+ */
+
+/**
+ * The purpose of the types defined are to provide
+ * llvmscript with detailed information so that it can
+ * optimize your code better.
+ *
+ * These types are optional, and compilation
+ * would still work without them, but letting the
+ * compiler know what the type is exactly would
+ * improve the efficiency of your code.
+ *
+ * What if you don't use these types?
+ *
+ * - 'number' will be treated as double
+ */
+
+/**
  * Signed 16 bit integer
  */
 type i16 = number;

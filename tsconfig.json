@@ -2,9 +2,10 @@
   "compilerOptions": {
     "allowJs": true,
     "strict": true,
-    "esModuleInterop": true
+    "esModuleInterop": true,
+    "target": "ES5"
   },
 
-  "include": ["src", "types"],
+  "include": ["src", "types", "test"],
   "exclude": ["node_modules"]
 }

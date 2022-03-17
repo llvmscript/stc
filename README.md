@@ -22,6 +22,12 @@ Getting LLVM generated code from a c file:
 llvm-gcc -S -emit-llvm llvm/hello-world.c -o /dev/stdout
 ```
 
+## Development Notes
+
+### Variables & Types
+
+[TODO]
+
 ### Why
 
 what better way to learn more about compilers than to actually build one

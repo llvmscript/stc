@@ -1,14 +1,54 @@
+import { generateStdlib } from "./stdlib";
+import { LLVM } from "./llvm";
 import llvm from "llvm-bindings";
-import ts from "typescript";
+import ts, { SyntaxKind } from "typescript";
 import { execSync } from "child_process";
 import fs from "fs";
+import { program } from "commander";
+import assert from "assert";
+import * as Core from "./core";
 
 const filename = "hello-world.ts";
 const code = `
 console.log("helo world");
 `;
-let VARIABLE_COUNT_GLOBAL: number = 0;
-let VARIABLE_STRING_PREFIX: string = ".str";
+
+program.parse();
+
+/**
+ * Creates a global constant and pushes it into TypeStack.constants
+ */
+const createGlobalConstant = (
+  ll: LLVM,
+  constant: Core.Constant
+): Core.Constant => {
+  // return previously defined constant if found
+  const reusedConstant = Core.GLOBAL_STACK.constantReuse(constant);
+  if (reusedConstant) return reusedConstant;
+
+  switch (constant.type) {
+    case Core.Type.string: {
+      const ptr = ll.builder.CreateGlobalStringPtr(
+        constant.sourceValue as string,
+        `.str.${Core.GLOBAL_STACK.constantCount}`,
+        0,
+        ll.module
+      );
+      const createdConstant: Core.Constant = {
+        name: `.str.${Core.GLOBAL_STACK.constantCount}`,
+        type: Core.Type.string,
+        value: ptr,
+        sourceValue: constant.sourceValue,
+      };
+      Core.GLOBAL_STACK.constantPush(createdConstant);
+      return createdConstant;
+    }
+  }
+  assert(
+    false,
+    `createGlobalConstant for ${constant.type} is not implemented yet.`
+  );
+};
 
 const printTS = (node: ts.SourceFile): void => {
   const printer = ts.createPrinter({ newLine: ts.NewLineKind.LineFeed });
@@ -25,56 +65,37 @@ const printJSON = (obj: any): void => {
  * Recursively go into each expression and tell the builder
  * to generate the equivalent code for global objects
  */
-const handleGlobals = (
-  builder: llvm.IRBuilder,
-  module: llvm.Module,
-  node: ts.Node
-) => {
+const handleGlobals = (ll: LLVM, sourceFile: ts.SourceFile) => {
   const findGlobals = (node: ts.Node) => {
-    // check if node is function call
-    if (
-      ts.isCallExpression(node) &&
-      ts.isPropertyAccessExpression(node.expression)
-    ) {
-      printJSON(node.expression);
-      if (
-        ts.isIdentifier(node.expression.expression) &&
-        node.expression.expression.escapedText === "console"
-      ) {
-        if (
-          ts.isIdentifier(node.expression.name) &&
-          node.expression.name.escapedText === "log"
-        ) {
-          // found console.log
-          const fputs = llvm.Function.Create(
-            llvm.FunctionType.get(
-              builder.getInt32Ty(),
-              [builder.getInt8PtrTy()],
-              false
-            ),
-            llvm.Function.LinkageTypes.ExternalLinkage,
-            "puts",
-            module
-          );
-          fputs.setDoesNotThrow();
-
-          const printArg = node.arguments[0];
-          if (ts.isStringLiteral(printArg)) {
-            VARIABLE_COUNT_GLOBAL++;
-            const printConst = builder.CreateGlobalStringPtr(
-              printArg.text,
-              `${VARIABLE_STRING_PREFIX}.${VARIABLE_COUNT_GLOBAL}`,
-              0,
-              module
-            );
-            builder.CreateCall(fputs, [printConst]);
-          }
-        }
+    if (ts.isCallExpression(node)) {
+      // push the argument onto the stack
+      if (ts.isStringLiteral(node.arguments[0])) {
+        const constant = createGlobalConstant(ll, {
+          type: Core.Type.string,
+          sourceValue: node.arguments[0].text,
+        });
+        Core.GLOBAL_STACK.push({
+          type: Core.Type.string,
+          value: constant.value,
+        });
+      }
+      if (ts.isPropertyAccessExpression(node.expression)) {
+        const entryBB = ll.module.getFunction("main")!.getEntryBlock();
+        ll.builder.SetInsertPoint(entryBB);
+        const arg = Core.GLOBAL_STACK.pop();
+        assert(arg, "No variable found on the stack");
+        assert(arg.value, "Invalid variable at the top of the stack");
+        ll.builder.CreateCall(
+          ll.module.getFunction(
+            node.expression.getText(sourceFile).replace(".", "_")
+          )!,
+          [arg.value]
+        );
       }
     }
     ts.forEachChild(node, findGlobals);
   };
-  findGlobals(node);
+  findGlobals(sourceFile);
 };
 
 const main = async () => {
@@ -85,36 +106,34 @@ const main = async () => {
   if (filename.endsWith(".ts")) {
     moduleName = filename.substring(0, filename.length - 3);
   }
-  const llvmContext = new llvm.LLVMContext();
-  const llvmModule = new llvm.Module(moduleName, llvmContext);
-  const builder = new llvm.IRBuilder(llvmContext);
+  const ll = new LLVM(moduleName);
 
   // llvm: create the main function
-  const mainFunc = llvm.Function.Create(
-    llvm.FunctionType.get(builder.getInt32Ty(), [], false),
+  const fmain = llvm.Function.Create(
+    llvm.FunctionType.get(ll.builder.getInt32Ty(), [], false),
     llvm.Function.LinkageTypes.ExternalLinkage,
     "main",
-    llvmModule
+    ll.module
   );
-
-  const entryBB = llvm.BasicBlock.Create(llvmContext, "entry", mainFunc);
-  builder.SetInsertPoint(entryBB);
+  const fmainEntryBlock = llvm.BasicBlock.Create(ll.context, "entry", fmain);
+  ll.builder.SetInsertPoint(fmainEntryBlock);
 
   printJSON(node);
 
-  handleGlobals(builder, llvmModule, node);
+  generateStdlib(ll);
+  handleGlobals(ll, node);
 
-  builder.CreateRet(builder.getInt32(0));
+  ll.builder.CreateRet(ll.builder.getInt32(0));
 
   printTS(node);
-  console.log(llvmModule.print());
+  console.log(ll.module.print());
 
   // compile the program
-  if (llvm.verifyModule(llvmModule)) {
+  if (llvm.verifyModule(ll.module)) {
     console.error("Verifying module failed");
     return;
   }
-  fs.writeFileSync(`${moduleName}.ll`, llvmModule.print());
+  fs.writeFileSync(`${moduleName}.ll`, ll.module.print());
   execSync(`clang ${moduleName}.ll -o ./a.out`);
 };
 
