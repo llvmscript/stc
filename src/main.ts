@@ -1,7 +1,7 @@
 import { generateStdlib } from "./stdlib";
 import { LLVM } from "./llvm";
 import llvm from "llvm-bindings";
-import ts, { SyntaxKind } from "typescript";
+import ts from "typescript";
 import { execSync } from "child_process";
 import fs from "fs";
 import { program } from "commander";
@@ -67,6 +67,13 @@ const printJSON = (obj: any): void => {
  */
 const handleGlobals = (ll: LLVM, sourceFile: ts.SourceFile) => {
   const findGlobals = (node: ts.Node) => {
+    if (ts.isBlock(node)) {
+      Core.GLOBAL_STACK.push({
+        variables: [],
+        value: llvm.BasicBlock.Create(ll.context),
+      });
+    }
+
     if (ts.isCallExpression(node)) {
       // push the argument onto the stack
       if (ts.isStringLiteral(node.arguments[0])) {
@@ -74,7 +81,7 @@ const handleGlobals = (ll: LLVM, sourceFile: ts.SourceFile) => {
           type: Core.Type.string,
           sourceValue: node.arguments[0].text,
         });
-        Core.GLOBAL_STACK.push({
+        Core.GLOBAL_STACK.pushVar({
           type: Core.Type.string,
           value: constant.value,
         });
@@ -82,7 +89,7 @@ const handleGlobals = (ll: LLVM, sourceFile: ts.SourceFile) => {
       if (ts.isPropertyAccessExpression(node.expression)) {
         const entryBB = ll.module.getFunction("main")!.getEntryBlock();
         ll.builder.SetInsertPoint(entryBB);
-        const arg = Core.GLOBAL_STACK.pop();
+        const arg = Core.GLOBAL_STACK.popVar();
         assert(arg, "No variable found on the stack");
         assert(arg.value, "Invalid variable at the top of the stack");
         ll.builder.CreateCall(
@@ -117,6 +124,8 @@ const main = async () => {
   );
   const fmainEntryBlock = llvm.BasicBlock.Create(ll.context, "entry", fmain);
   ll.builder.SetInsertPoint(fmainEntryBlock);
+  // create global scope
+  Core.GLOBAL_STACK.push({ value: fmainEntryBlock, variables: [] });
 
   printJSON(node);
 

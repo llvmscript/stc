@@ -84,20 +84,44 @@ export interface Constant {
   sourceValue: string | number;
 }
 
+export interface Scope {
+  name?: string;
+  value: llvm.BasicBlock;
+  variables: Variable[];
+}
+
 export class TypeStack {
-  private _stack: Variable[] = []; // should not be modifiable in any other way
+  private _stack: Scope[] = []; // should not be modifiable in any other way
   private _constants: Constant[] = []; // should only be pushed to
 
   get stackElementCount(): number {
     return this._stack.length;
   }
 
-  push(type: Variable): number {
-    return this._stack.push(type);
+  push(scope: Scope): number {
+    return this._stack.push(scope);
   }
 
-  pop(): Variable | undefined {
+  pop(): Scope | undefined {
     return this._stack.pop();
+  }
+
+  peek(): Scope | undefined {
+    return this._stack[this._stack.length - 1];
+  }
+
+  pushVar(variable: Variable): number {
+    const scope = this.peek();
+    assert(scope, "No scope found on the top of the stack");
+
+    return scope.variables.push(variable);
+  }
+
+  popVar(): Variable | undefined {
+    const scope = this.peek();
+    assert(scope, "No scope found on the top of the stack");
+
+    return scope.variables.pop();
   }
 
   get constantCount(): number {
