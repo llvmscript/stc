@@ -153,7 +153,9 @@ const main = () => {
     process.exit(1);
   }
 
-  console.log(inspect(program.getSourceFile("test/main.ts")));
+  console.log(
+    inspect(program.getSourceFile("test/main.ts"), undefined, null, true)
+  );
 
   llvm.InitializeAllTargetInfos();
   llvm.InitializeAllTargets();
