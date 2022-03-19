@@ -3,9 +3,10 @@
     "allowJs": true,
     "strict": true,
     "esModuleInterop": true,
-    "target": "ES5"
+    "moduleResolution": "node",
+    "target": "ES6"
   },
 
-  "include": ["src", "types", "test"],
+  "include": ["compiler", "types", "lib/*.d.ts"],
   "exclude": ["node_modules"]
 }

@@ -2,7 +2,7 @@
   "private": "true",
   "name": "llvmscript",
   "scripts": {
-    "start": "ts-node src/main.ts"
+    "start": "ts-node compiler/main.ts"
   },
   "devDependencies": {
     "@types/node": "^17.0.21"
