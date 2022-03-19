@@ -36,6 +36,32 @@ The runtime could also be implemented in LLVM IR, but it would be stupid to do s
 
 Although the runtime library is implemented in C, it gets "translated" into LLVM IR as well, and that is the basis for this compiler. This means that you'd need to interface with the runtime library through the equivalent LLVM calls that you'd do as if it was an LLVM IR file.
 
+How it looks like before:
+
+```mermaid
+flowchart LR
+  stdlibIRGen[stdlib defined using LLVM IR builder]
+  sourceCode[source code represented as LLVM IR]
+  compiledOutput[Binary executable]
+  cmake[CMake]
+  
+  stdlibIRGen & sourceCode --> cmake --> compiledOutput
+```
+
+How it looks like now:
+
+```mermaid
+flowchart LR
+  stdlibC[stdlib written in C]
+  sourceCode[source code represented as LLVM IR]
+  compiledOutput[Binary executable]
+  cmake[CMake]
+  
+  stdlibC & sourceCode --> cmake --> compiledOutput
+```
+
+As you can see, CMake accepts both LLVM IR and C/C++ code, which means we wouldn't need to re-invent the wheel if we were to do the same thing with the LLVM IR Builder. C comes with a plethora of builtins we can use, resulting in a standard library that's a lot easier to write and maintain.
+
 ### Why
 
 what better way to learn more about compilers than to actually build one
