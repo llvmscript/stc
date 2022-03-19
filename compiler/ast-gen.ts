@@ -1,12 +1,12 @@
 import ts from "typescript";
 
-const code = `
-function momento(count: i16) {
-  for (let i = 0; i < count; i++) {
-    console.log("de bruh");
-  }
-}
-`;
+// const code = `
+// function momento(count: i16) {
+//   for (let i = 0; i < count; i++) {
+//     console.log("de bruh");
+//   }
+// }
+// `;
 
 const ast = () => {
   // const node = ts.createSourceFile("x.ts", code, ts.ScriptTarget.Latest);

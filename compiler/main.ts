@@ -5,7 +5,6 @@ import fs from "fs";
 import { Command } from "commander";
 import assert from "assert";
 import { inspect } from "util";
-import * as Core from "./core";
 import { generateLLVM } from "./generator";
 import path from "path";
 
@@ -100,7 +99,7 @@ const printTS = (node: ts.SourceFile): void => {
 // };
 
 const replaceFileExtension = (filePath: string, extension: string): string => {
-  return filePath.replace(/\.[^\.\/\\]+$/, "") + extension;
+  return filePath.replace(/\.[^./\\]+$/, "") + extension;
 };
 
 const getOutputBaseName = (program: ts.Program): string => {

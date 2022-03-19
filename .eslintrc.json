@@ -9,15 +9,10 @@
   "parserOptions": { "project": ["./tsconfig.json"] },
   "plugins": ["@typescript-eslint"],
   "rules": {
-    "@typescript-eslint/strict-boolean-expressions": [
-      2,
-      {
-        "allowString": false,
-        "allowNumber": false
-      }
-    ],
     "prefer-arrow-callback": "warn",
-    "prefer-const": "warn"
+    "prefer-const": "warn",
+    "no-empty": "off",
+    "@typescript-eslint/no-empty-function": "off"
   },
   "ignorePatterns": ["test"]
 }

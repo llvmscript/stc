@@ -1,8 +1,8 @@
 import llvm from "llvm-bindings";
 import assert from "assert";
 import ts from "typescript";
-import { LLVM } from "./llvm";
 
+/* eslint-disable @typescript-eslint/no-namespace */
 /* prettier-ignore */
 /**
  * The following types are expressed as such:

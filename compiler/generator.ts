@@ -38,8 +38,8 @@ export const generateLLVM = (program: ts.Program): llvm.Module => {
 
   try {
     llvm.verifyModule(module);
-  } catch (error: any) {
-    error.message += `\n${module.print()}`;
+  } catch (error) {
+    (error as Error).message += `\n${module.print()}`;
     throw error;
   }
 
