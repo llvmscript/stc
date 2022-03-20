@@ -126,18 +126,21 @@ const writeExecutableToFile = (
     .map((file) => path.join(runtimeLibPath, file));
   const irFileName = writeIRToFile(module, program);
   const executableFileName = replaceFileExtension(irFileName, ".out");
+  const clangArgs = [
+    "-O3",
+    ...runtimeLibFiles,
+    irFileName,
+    "-o",
+    executableFileName,
+    "--std=c11",
+  ];
 
   try {
-    execFileSync("clang", [
-      "-O3",
-      ...runtimeLibFiles,
-      irFileName,
-      "-o",
-      executableFileName,
-      "--std=c11",
-    ]);
-  } finally {
-    // ignore errors
+    execFileSync("clang", clangArgs);
+  } catch {
+    console.log("\nclang failed to compile.");
+    console.log("Running clang again with verbose output...");
+    execFileSync("clang", [...clangArgs, "-v"]);
   }
 };
 

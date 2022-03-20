@@ -1,3 +1,6 @@
+/* eslint-disable */
+/* Disabled eslint because this file was giving me too many errors 😕 */
+
 import ts, {
   BinaryExpression,
   ForStatement,

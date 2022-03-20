@@ -62,6 +62,22 @@ flowchart LR
 
 As you can see, CMake accepts both LLVM IR and C/C++ code, which means we wouldn't need to re-invent the wheel if we were to do the same thing with the LLVM IR Builder. C comes with a plethora of builtins we can use, resulting in a standard library that's a lot easier to write and maintain.
 
+## Compiler Architecture
+
+```mermaid
+flowchart LR
+  sourceFile["Source file (.ts)"]
+  tsTypeChecking["TypeScript type checker (any type allowed)"]
+  astGenerator["AST tree output from TypeScript compiler"]
+  globalConsts["Global constants generator"]
+  expressionParsing["Statements & Expression handler"]
+  typeTracking["Type tracker"]
+  llvmIRBuilder["LLVM IR Builder"]
+  clangCompiler["Clang compiler & Linker"]
+  
+  sourceFile --> tsTypeChecking --> astGenerator --> globalConsts & expressionParsing & typeTracking --> llvmIRBuilder --> clangCompiler
+```
+
 ### Why
 
 what better way to learn more about compilers than to actually build one
