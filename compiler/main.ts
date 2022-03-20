@@ -4,7 +4,6 @@ import { execFileSync } from "child_process";
 import fs from "fs";
 import { Command } from "commander";
 import assert from "assert";
-import { inspect } from "util";
 import { generateLLVM } from "./generator";
 import path from "path";
 import { printAST, printASTKinds } from "./utils/typescript";
@@ -54,50 +53,6 @@ const printTS = (node: ts.SourceFile): void => {
 
   console.log(result);
 };
-
-// /**
-//  * Recursively go into each expression and tell the builder
-//  * to generate the equivalent code for global objects
-//  */
-// const handleGlobals = (ll: LLVM, sourceFile: ts.SourceFile) => {
-//   const findGlobals = (node: ts.Node) => {
-//     if (ts.isBlock(node)) {
-//       Core.GLOBAL_STACK.push({
-//         variables: [],
-//         value: llvm.BasicBlock.Create(ll.context),
-//       });
-//     }
-
-//     if (ts.isCallExpression(node)) {
-//       // push the argument onto the stack
-//       if (ts.isStringLiteral(node.arguments[0])) {
-//         const constant = createGlobalConstant(ll, {
-//           type: Core.Type.string,
-//           sourceValue: node.arguments[0].text,
-//         });
-//         Core.GLOBAL_STACK.pushVar({
-//           type: Core.Type.string,
-//           value: constant.value,
-//         });
-//       }
-//       if (ts.isPropertyAccessExpression(node.expression)) {
-//         const entryBB = ll.module.getFunction("main")!.getEntryBlock();
-//         ll.builder.SetInsertPoint(entryBB);
-//         const arg = Core.GLOBAL_STACK.popVar();
-//         assert(arg, "No variable found on the stack");
-//         assert(arg.value, "Invalid variable at the top of the stack");
-//         ll.builder.CreateCall(
-//           ll.module.getFunction(
-//             node.expression.getText(sourceFile).replace(".", "_")
-//           )!,
-//           [arg.value]
-//         );
-//       }
-//     }
-//     ts.forEachChild(node, findGlobals);
-//   };
-//   findGlobals(sourceFile);
-// };
 
 const replaceFileExtension = (filePath: string, extension: string): string => {
   return filePath.replace(/\.[^./\\]+$/, "") + extension;
