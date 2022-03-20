@@ -7,6 +7,7 @@ import assert from "assert";
 import { inspect } from "util";
 import { generateLLVM } from "./generator";
 import path from "path";
+import { printAST, printASTKinds } from "./utils/typescript";
 
 const argv = new Command();
 
@@ -148,6 +149,7 @@ const main = () => {
   const tsCompilerOptions: ts.CompilerOptions = {};
   const host = ts.createCompilerHost(tsCompilerOptions);
   const program = ts.createProgram(["test/main.ts"], tsCompilerOptions, host);
+  const testFile = program.getSourceFile("test/main.ts");
   const diagnostics = ts.getPreEmitDiagnostics(program);
 
   if (diagnostics.length > 0) {
@@ -155,9 +157,10 @@ const main = () => {
     process.exit(1);
   }
 
-  console.log(
-    inspect(program.getSourceFile("test/main.ts"), undefined, null, true)
-  );
+  console.log("\n--- TYPESCRIPT AST OUTPUT ---\n");
+  printAST(testFile as ts.Node);
+  console.log("\n--- TYPESCRIPT AST KINDS ---\n");
+  printASTKinds(testFile as ts.Node);
 
   llvm.InitializeAllTargetInfos();
   llvm.InitializeAllTargets();
