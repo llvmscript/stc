@@ -189,6 +189,21 @@ export class TypeStack {
     assert(false, `Unknown identifier '${identifier}'`);
   }
 
+  getScope(identifier: string): Scope {
+    const scope = this.get(identifier) as Scope;
+    assert(scope instanceof Scope, `Identifier '${identifier}' is not a scope`);
+    return scope;
+  }
+
+  getValue(identifier: string): llvm.Value {
+    const value = this.get(identifier) as llvm.Value;
+    assert(
+      value instanceof llvm.Value,
+      `Identifier '${identifier}' is not a value`
+    );
+    return value;
+  }
+
   get globalScope(): Scope {
     return this.scopes[0];
   }

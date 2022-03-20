@@ -1,3 +1,4 @@
+import { getLLVMFunction } from "./utils/llvm";
 import { Scope, TypeStack } from "./core";
 import ts from "typescript";
 import llvm from "llvm-bindings";
@@ -153,9 +154,48 @@ export class IREmitter {
     });
   }
 
-  emitExpressionStatement(statement: ts.ExpressionStatement) {
-    if (ts.isCallExpression(statement.expression)) {
+  emitExpressionStatement(statement: ts.ExpressionStatement): void {
+    /*
+    NOTE: This is just to get console.log to work, in future we have
+    to turn all these ifs into things that calls IR generation
+    functions that handle each specific expression kind.
+    */
+
+    if (
+      ts.isCallExpression(statement.expression) &&
+      ts.isPropertyAccessExpression(statement.expression.expression)
+    ) {
+      const funcName = statement.expression.expression
+        .getText()
+        .replace(".", "__");
+      const arg = statement.expression.arguments[0].getFullText();
+
+      // assuming arg is a string literal
+      const argStringPtr = this.generator.builder.CreateGlobalStringPtr(
+        arg,
+        "",
+        0,
+        this.generator.module
+      );
+
+      // declare the function to let llvm know that it's in another object file
+      keepInsertionPoint(this.generator.builder, () => {
+        llvm.Function.Create(
+          llvm.FunctionType.get(
+            this.generator.builder.getVoidTy(),
+            [this.generator.builder.getInt8PtrTy()],
+            false
+          ),
+          llvm.Function.LinkageTypes.ExternalLinkage,
+          "console__log",
+          this.generator.module
+        );
+      });
+
+      this.generator.builder.CreateCall(
+        getLLVMFunction(this.generator.module, funcName),
+        [argStringPtr]
+      );
     }
-    this.generator.stack.withScope((scope) => {});
   }
 }
