@@ -1,23 +1,20 @@
-import { getLLVMFunction } from "./utils/llvm";
 import { Scope, TypeStack } from "./core";
 import ts from "typescript";
 import llvm from "llvm-bindings";
 import assert from "assert";
-
-const keepInsertionPoint = <T>(builder: llvm.IRBuilder, emit: () => T): T => {
-  const savedIP = builder.GetInsertBlock();
-  assert(savedIP, `Failed to get insert block`);
-  const result = emit();
-  builder.SetInsertPoint(savedIP);
-  return result;
-};
+import { manglePropertyAccess } from "./utils/mangle";
+import { emitStdlibCall } from "./stdlib";
+import { getEnumKeyByEnumValue } from "./utils/misc";
 
 export const generateLLVM = (program: ts.Program): llvm.Module => {
-  const checker = program.getTypeChecker();
   const context = new llvm.LLVMContext();
   const module = new llvm.Module("main", context);
-  const generator = new LLVMGenerator(checker, module, context);
+  const generator = new LLVMGenerator(program, module, context);
   const { builder } = generator;
+
+  // ensure lib/stc.d.ts is included
+  const stdlibDef = generator.program.getSourceFile("lib/stc.d.ts");
+  assert(stdlibDef, "FATAL: Could not find stc type definitions");
 
   // llvm: create the main function
   const fmain = llvm.Function.Create(
@@ -54,6 +51,7 @@ export const generateLLVM = (program: ts.Program): llvm.Module => {
  * around from a single construction.
  */
 export class LLVMGenerator {
+  readonly program: ts.Program;
   readonly checker: ts.TypeChecker;
   readonly module: llvm.Module;
   readonly context: llvm.LLVMContext;
@@ -62,11 +60,12 @@ export class LLVMGenerator {
   readonly emitter: IREmitter;
 
   constructor(
-    checker: ts.TypeChecker,
+    program: ts.Program,
     module: llvm.Module,
     context: llvm.LLVMContext
   ) {
-    this.checker = checker;
+    this.program = program;
+    this.checker = program.getTypeChecker();
     this.module = module;
     this.context = context;
     this.builder = new llvm.IRBuilder(context);
@@ -161,41 +160,159 @@ export class IREmitter {
     functions that handle each specific expression kind.
     */
 
-    if (
-      ts.isCallExpression(statement.expression) &&
-      ts.isPropertyAccessExpression(statement.expression.expression)
-    ) {
-      const funcName = statement.expression.expression
-        .getText()
-        .replace(".", "__");
-      const arg = statement.expression.arguments[0].getFullText();
+    if (ts.isCallExpression(statement.expression)) {
+      this.emitCallExpression(statement.expression);
+    }
 
-      // assuming arg is a string literal
-      const argStringPtr = this.generator.builder.CreateGlobalStringPtr(
-        arg,
+    /*
+    TODO: Support language builtins like String.prototype.length, String.prototype.join
+    */
+  }
+
+  emitCallExpression(expression: ts.CallExpression) {
+    emitStdlibCall(expression, this.generator);
+
+    let funcName: string = expression.expression.getText();
+    if (ts.isPropertyAccessExpression(expression.expression)) {
+      funcName = this.handlePropertyAccessExpression(expression.expression);
+    }
+
+    const callArgs: llvm.Value[] = [];
+    for (const arg of expression.arguments) {
+      const type = this.generator.checker.getTypeAtLocation(arg);
+      if (type.isLiteral()) {
+        this.emitLiteralConstant(type);
+      } else {
+        this.emitVariableObject(type);
+      }
+    }
+
+    // const args = expression.arguments;
+    // let funcName: string;
+    // if (ts.isPropertyAccessExpression(expression.expression)) {
+    //   funcName = this.handlePropertyAccessExpression(expression.expression);
+    // } else {
+    //   funcName = expression.expression.getText();
+    // }
+
+    // // get call arguments + types
+    // const callArgs: llvm.Value[] = [];
+    // for (const arg of args) {
+    //   const type = this.generator.checker.getTypeAtLocation(arg);
+    //   if (type.isStringLiteral()) {
+    //     callArgs.push(
+    //       this.generator.builder.CreateGlobalStringPtr(
+    //         arg.getText(),
+    //         "",
+    //         0,
+    //         this.generator.module
+    //       )
+    //     );
+    //   } else if (type.isNumberLiteral()) {
+    //     callArgs.push(
+    //       llvm.ConstantFP.get(
+    //         this.generator.builder.getFloatTy(),
+    //         parseFloat(arg.getText())
+    //       )
+    //     );
+    //   }
+    // }
+    // const callArgsTypes: llvm.Type[] = callArgs.map((i) => i.getType());
+
+    // /* we have to look at the call site to "guess" the function type.
+    //    if we can't guess it, we have to throw an error. */
+    // let llFuncReturnType: llvm.Type = this.generator.builder.getVoidTy();
+    // if (expression.parent && ts.isVariableDeclaration(expression.parent)) {
+    //   const returnType = this.generator.checker.getTypeAtLocation(
+    //     expression.parent
+    //   );
+
+    //   switch (returnType.flags) {
+    //     case ts.TypeFlags.Void:
+    //       llFuncReturnType = this.generator.builder.getVoidTy();
+    //       break;
+    //     case ts.TypeFlags.String:
+    //       llFuncReturnType = this.generator.builder.getInt8PtrTy();
+    //       break;
+    //     case ts.TypeFlags.Boolean:
+    //       llFuncReturnType = this.generator.builder.getInt8Ty();
+    //       break;
+    //     case ts.TypeFlags.Number:
+    //       llFuncReturnType = this.generator.builder.getFloatTy();
+    //       break;
+    //     default:
+    //       throw new Error(`Unable to get function callee type`);
+    //   }
+    // }
+
+    // const llFunc = this.generator.module.getOrInsertFunction(
+    //   funcName,
+    //   llvm.FunctionType.get(llFuncReturnType, callArgsTypes, false)
+    // );
+    // this.generator.builder.CreateCall(
+    //   llFunc.getFunctionType(),
+    //   llFunc.getCallee(),
+    //   callArgs
+    // );
+  }
+
+  emitLiteralConstant(type: ts.LiteralType): llvm.Constant {
+    if (type.isStringLiteral()) {
+      return this.generator.builder.CreateGlobalStringPtr(
+        type.value,
         "",
         0,
         this.generator.module
       );
-
-      // declare the function to let llvm know that it's in another object file
-      keepInsertionPoint(this.generator.builder, () => {
-        llvm.Function.Create(
-          llvm.FunctionType.get(
-            this.generator.builder.getVoidTy(),
-            [this.generator.builder.getInt8PtrTy()],
-            false
-          ),
-          llvm.Function.LinkageTypes.ExternalLinkage,
-          "console__log",
-          this.generator.module
-        );
-      });
-
-      this.generator.builder.CreateCall(
-        getLLVMFunction(this.generator.module, funcName),
-        [argStringPtr]
+    }
+    if (type.isNumberLiteral()) {
+      return llvm.ConstantFP.get(
+        this.generator.builder.getFloatTy(),
+        type.value
       );
     }
+    throw new Error(
+      `Cannot emit invalid literal constant of type ${getEnumKeyByEnumValue(
+        ts.TypeFlags,
+        type.flags
+      )}`
+    );
+  }
+
+  emitVariableObject(type: ts.Type) {
+    if (type.flags === ts.TypeFlags.String) {
+      const stringType = llvm.StructType.create(
+        this.generator.context,
+        [
+          this.generator.builder.getInt8PtrTy(),
+          this.generator.builder.getInt32Ty(),
+        ],
+        "String"
+      );
+      const alloca = this.generator.builder.CreateAlloca(stringType);
+      // const dataPtr = this.generator.builder.CreateInBoundsGEP(stringType, alloca, []);
+      // const lengthPtr = this.generator.builder.CreateInBoundsGEP(stringType, )
+      // this.generator.builder.CreateStore(
+      //   this.generator.builder.CreateGlobalStringPtr(""),
+      //   alloca
+      // );
+      // this.generator.builder.CreateStore(
+
+      // )
+    } else {
+      throw new Error(
+        `Cannot allocate memory for invalid type ${getEnumKeyByEnumValue(
+          ts.TypeFlags,
+          type.flags
+        )}`
+      );
+    }
+  }
+
+  handlePropertyAccessExpression(
+    expression: ts.PropertyAccessExpression
+  ): string {
+    // straight up just turn the whole thing into a mangled string lol
+    return manglePropertyAccess(expression.getText());
   }
 }

@@ -7,6 +7,6 @@
     "target": "ES6"
   },
 
-  "include": ["compiler", "types", "lib/*.d.ts"],
+  "include": ["compiler", "types"],
   "exclude": ["node_modules"]
 }

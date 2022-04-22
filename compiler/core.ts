@@ -28,6 +28,8 @@ export enum Type {
   f16    = "f16",
   f32    = "f32",
   f64    = "f64",
+  void   = "void",
+  null   = "null",
   // PRIVATE
   i128   = "i128",
   f128   = "f128",
@@ -67,11 +69,88 @@ export namespace Type {
         return llvm.Type.getDoubleTy(context);
       case Type.f128:
         return llvm.Type.getFP128Ty(context);
+      case Type.void:
+        return llvm.Type.getVoidTy(context);
       default:
         throw new Error(`Cannot convert type '${type}' to LLVM equivalent`);
     }
   };
+
+  export const fromLLVMType = (type: llvm.Type): Type => {
+    if (type.isArrayTy()) {
+      if (type.isIntegerTy()) {
+        return Type.string;
+      }
+    }
+    if (type.isIntegerTy(1)) {
+      return Type.bool;
+    }
+    if (type.isIntegerTy(8)) {
+      return Type.i8;
+    }
+    if (type.isIntegerTy(16)) {
+      return Type.i16;
+    }
+    if (type.isIntegerTy(32)) {
+      return Type.i32;
+    }
+    if (type.isIntegerTy(64)) {
+      return Type.i64;
+    }
+    if (type.isIntegerTy(128)) {
+      return Type.i128;
+    }
+    if (type.isHalfTy()) {
+      return Type.f16;
+    }
+    if (type.isFloatTy()) {
+      return Type.f32;
+    }
+    if (type.isDoubleTy()) {
+      return Type.f64;
+    }
+    if (type.isFP128Ty()) {
+      return Type.f128;
+    }
+    if (type.isVoidTy()) {
+      return Type.void;
+    }
+    throw new Error(
+      `Cannot convert llvm type '${type}' to llvmscript equivalent`
+    );
+  };
+
+  export const fromTSType = (type: ts.Type): Type => {
+    if (type.isStringLiteral()) {
+      return Type.string;
+    }
+    if (type.isNumberLiteral()) {
+      return Type.f64;
+    }
+    if (type.flags) {
+      switch (type.flags) {
+        case ts.TypeFlags.String:
+          return Type.string;
+        case ts.TypeFlags.Void:
+          return Type.void;
+        case ts.TypeFlags.Boolean:
+          return Type.bool;
+        case ts.TypeFlags.Number:
+          return Type.f64;
+        case ts.TypeFlags.BigInt:
+          return Type.f128;
+        case ts.TypeFlags.Null:
+          return Type.null;
+      }
+    }
+    throw new Error(
+      `Cannot convert ts.Type '${type}' to llvmscript equivalent`
+    );
+  };
 }
+
+/* TODO:
+   Make TypeScript type to llvm.Type converter */
 
 // export interface Variable {
 //   type: Type; // strictly not optional

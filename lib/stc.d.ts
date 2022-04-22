@@ -1,3 +1,5 @@
+/* eslint-disable no-var */
+
 /**
  * llvmscript's main TypeScript definition file.
  */

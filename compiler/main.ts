@@ -101,9 +101,16 @@ const writeExecutableToFile = (
 };
 
 const main = () => {
-  const tsCompilerOptions: ts.CompilerOptions = {};
+  const tsCompilerOptions: ts.CompilerOptions = {
+    types: [],
+    strict: true,
+  };
   const host = ts.createCompilerHost(tsCompilerOptions);
-  const program = ts.createProgram(["test/main.ts"], tsCompilerOptions, host);
+  const program = ts.createProgram(
+    ["test/main.ts", "lib/stc.d.ts"],
+    tsCompilerOptions,
+    host
+  );
   const testFile = program.getSourceFile("test/main.ts");
   const diagnostics = ts.getPreEmitDiagnostics(program);
 

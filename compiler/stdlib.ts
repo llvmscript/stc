@@ -2,6 +2,12 @@ import llvm from "llvm-bindings";
 import { defineFunc, LLVM } from "./llvm";
 import * as Core from "./core";
 import assert from "assert";
+import { LLVMGenerator } from "./generator";
+import ts from "typescript";
+import path from "path";
+import fs from "fs";
+import { manglePropertyAccess } from "./utils/mangle";
+import { getEnumKeyByEnumValue } from "./utils/misc";
 
 /**
  * This adds libc
@@ -101,4 +107,142 @@ export const generateStdlib = (ll: LLVM) => {
   for (const key in stdlib.console) {
     stdlib.console[key as keyof typeof stdlib.console](ll);
   }
+};
+
+/**
+ * We need this Stdlib class because there is no way to ensure
+ * strong type safety just by linking the runtime C files with
+ * the program.
+ *
+ * TODO: We do not need this class any more, we should define the
+ *       types for the stdlib in stc.d.ts and only expose usable
+ *       functions.
+ *       We have to then use the definitions to check for
+ *       incorrect types via ts.TypeChecker
+ */
+export class Stdlib {
+  private generator: LLVMGenerator;
+
+  constructor(generator: LLVMGenerator) {
+    this.generator = generator;
+  }
+
+  getRuntimeLibPaths(): string[] {
+    const runtimeLibPath = path.join(__dirname, "..", "lib", "runtime");
+    return fs
+      .readdirSync(runtimeLibPath)
+      .filter((file) => path.extname(file) === ".c")
+      .map((file) => path.join(runtimeLibPath, file));
+  }
+
+  fcall(name: string, args: ts.NodeArray<ts.Expression>): boolean {
+    switch (name) {
+      // this name should be a 1:1 of the defined name in lib/runtime
+      case "console__log": {
+        const tsArg = args[0];
+        const argType = this.generator.checker.getTypeAtLocation(tsArg);
+        let arg: string = tsArg.getText();
+        if (!argType.isStringLiteral()) {
+          console.log(
+            `WARN: Casting argument of type ${argType.flags} to string`
+          );
+
+          // cast argument to string
+          arg = String(arg);
+        }
+        const callArg = this.generator.builder.CreateGlobalStringPtr(
+          arg,
+          "",
+          0,
+          this.generator.module
+        );
+        const llFunc = this.generator.module.getOrInsertFunction(
+          name,
+          llvm.FunctionType.get(
+            this.generator.builder.getInt8PtrTy(),
+            [callArg.getType()],
+            false
+          )
+        );
+        this.generator.builder.CreateCall(
+          llFunc.getFunctionType(),
+          llFunc.getCallee(),
+          [callArg]
+        );
+        return true;
+      }
+      default:
+        console.log(
+          `INFO: Using function that isn't defined in Stdlib 'fcall' => ${name}`
+        );
+    }
+
+    return true;
+  }
+}
+
+export const emitStdlibCall = (
+  expr: ts.Expression,
+  generator: LLVMGenerator
+): llvm.CallInst => {
+  if (ts.isCallExpression(expr)) {
+    const funcName = manglePropertyAccess(expr.expression.getText());
+    switch (funcName) {
+      case "console__log": {
+        const callArgs: llvm.Value[] = [];
+        for (const arg of expr.arguments) {
+          const type = generator.checker.getTypeAtLocation(arg);
+          let value: string | null = null;
+
+          if (type.isStringLiteral()) {
+            value = type.value;
+          }
+          if (type.isNumberLiteral()) {
+            console.warn(
+              `WARN: Casting variable of ${getEnumKeyByEnumValue(
+                ts.TypeFlags,
+                type.flags
+              )} type to string`
+            );
+            value = type.value.toString();
+          }
+          assert(
+            value,
+            `Cannot use variable of unknown type ${getEnumKeyByEnumValue(
+              ts.TypeFlags,
+              type.flags
+            )}`
+          );
+
+          callArgs.push(
+            generator.builder.CreateGlobalStringPtr(
+              value,
+              "",
+              0,
+              generator.module
+            )
+          );
+        }
+
+        const llFunc = generator.module.getOrInsertFunction(
+          funcName,
+          llvm.FunctionType.get(
+            generator.builder.getVoidTy(),
+            callArgs.map((i) => i.getType()),
+            false
+          )
+        );
+
+        return generator.builder.CreateCall(
+          llFunc.getFunctionType(),
+          llFunc.getCallee(),
+          callArgs
+        );
+      }
+    }
+  }
+
+  throw new Error(
+    `ERROR: Trying to use undeclared stdlib expression: ${expr.getText()}`
+  );
 };
